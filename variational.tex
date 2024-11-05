@@ -1,0 +1,228 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{enumitem, parskip}
+\usepackage[margin = 0.75 in]{geometry}
+\usepackage{cancel}
+\usepackage{braket}
+\usepackage{hyperref}
+\usepackage{mathtools, amsmath, amsthm, amssymb, float, graphicx, array, framed, mathrsfs, amstext, amsfonts, braket, siunitx, lmodern, microtype, slashed, tensor, empheq}
+
+%formatting
+\oddsidemargin0cm
+\topmargin-2cm     %I recommend adding these three lines to increase the 
+\textwidth16.5cm   %amount of usable space on the page (and save trees)
+\textheight23.5cm 
+
+\numberwithin{equation}{section}
+
+\title{\textbf{Work in Progress -- Quantum Variational Method on Solana Blockchain}}
+\author{Brandon Neway}
+\date{October 2024}
+
+%commands
+%\newcommand{commandName}[numArgs]{code, #n refers to n-th arg}
+\newcommand*\widefbox[1]{\fbox{\hspace{2em}#1\hspace{2em}}}
+\newcommand{\nc}[2]{\newcommand{#1}{#2}} 
+\newcommand{\rnc}[2]{\renewcommand{#1}{#2}}
+\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}
+\newcommand{\lageqn}[1]{\frac{d}{dt}\bigg(\frac{\partial L}{\partial \dot{#1}}\bigg) - \frac{\partial L}{\partial #1}}
+
+\begin{document}
+
+\maketitle
+
+\hspace{1cm} This document highlights some of the physics behind this Solana program. While the initial derivation of the variational method theorem (Section 1.2.1) closely follows Sakurai's "Modern Quantum", the other sections represent my own exploration and analysis. This document began as a straightforward transcription of the variational method theorem (Section 1.2.1) in an attempt to improve my intuition for what I am coding. However, it evolved into a deeper investigation, as working through the material sparked questions that required careful examination. I expand beyond Sakurai's treatment to develop a more thorough understanding of the underlying concepts, though I occasionally draw inspiration from his approach in select areas. You might notice there are many assumptions that I go into detail on, while others I at most acknowledge. The reason for this is that I really only expand on the assumptions that I started thinking about in more detail or posing questions about. If you think I aptly identified one assumption but missed others, I probably did.
+
+\section{Physics of Quantum Variational Method}
+\subsection{Helpful Reminders}
+\subsubsection{Bras, Kets, and Inner Products}
+\hspace{1cm} A ket $\ket{\alpha}$, represents a physical state. Mathematically, it is a vector in a complex vector space $V$, whose dimensionality is specified by the physical system under examination. For example, a spin 1/2 system would require a two dimensional complex vector space, one dimension for the spin-up component and one for the spin-down component. A particle whose only property is its location on $\mathbb{R}$ would require an infinite-dimensional complex \href{https://en.wikipedia.org/wiki/Hilbert_space#Definition}{Hilbert space}, with each dimension corresponding to a different location.
+
+\hspace{1cm} A bra $\bra{\gamma}$, is an element of the dual vector space $V^*$, which is dual to $V$. A dual space consists of all linear functionals $f : V \rightarrow \mathbb{C}$. As such, a bra, being an element of this dual space, is a linear functional from $V$ to $\mathbb{C}$. It is then clear why a bra acting on a ket evaluates to a complex number.
+
+\hspace{1cm} We then draw the correspondence between the inner product on $V$ and the action of the bra on the ket, $(\phi, \psi) \equiv \braket{\phi | \psi}$. The inner product $\braket{\phi | \psi}$ is then almost by construction an element of $\mathbb{C}$. The reason I elaborate on this is because it makes extra clear where the variable dependence disappears when later examining some of terms relevant to the variational method. 
+
+\subsubsection{Expectation Values}
+\hspace{1cm} For a given operator $A$, which we are assuming here to be Hermitian, the expectation value $\braket{A}$ for a given state $\alpha$ is defined as $\braket{A} \equiv \braket{\alpha | \hat{A} | \alpha}$. For a discrete spectra, we can expand it as follows:
+\begin{align*}
+    \braket{A} &\equiv \braket{\alpha | \hat{A} | \alpha}\\
+    &= \left( \sum_{i} \braket{\alpha | a_i} \bra{a_i} \right) \hat{A} \left( \sum_{j} \braket{a_j | \alpha} \ket{a_j} \right) \\
+    &= \sum_{i} \sum_{j} \braket{\alpha | a_i} \braket{a_i | \hat{A} | a_j} \braket{a_j | \alpha} \\
+    \intertext{The matrix elements $\braket{a_i | \hat{A} | a_j}$ of $\hat{A}$ in the eigenbasis need to be zero on the off-diagonals, otherwise that would imply the vectors are not orthonormal.}\\
+    &= \sum_{i} \sum_{j} a_j \braket{\alpha | a_i} \delta_{i j} \braket{a_j | \alpha} \\
+    &= \sum_{i} a_i \braket{\alpha | a_i} \braket{a_i | \alpha} \\
+    &= \sum_{i} \underbrace{a_i \vphantom{\big|}}_{\substack{\text{measured value} \\ a_i \text{ for the } \hat{A} \\ \text{ operator on } \\ \text {eigenstate } \ket{a_i} }} \hspace{0.5cm} \underbrace{|\braket{a_i | \alpha}|^2}_{\substack{\text{probability for} \\ \text{obtaining } a_i}} \\
+\end{align*}
+\hspace{1cm} Because our operator is Hermitian, this will always be a real number. This is consistent with our usual definition for expectation value outside of quantum mechanics. We can generalize this to the continuous case where our vectors lie in an infinite-dimensional complex Hilbert space, such as position space or momentum space. Similar, to the above case, we use the completeness relation $\int_\Omega d\mu(\psi) |\psi\rangle\langle\psi| = \hat{I}$, where $\Omega$ represents the entire state space of the system.
+\allowdisplaybreaks
+\begin{align*}
+    \braket{A} &\equiv \braket{\alpha | \hat{A} | \alpha}\\
+    &= \left( \int_{\Omega} d\mu(\psi) \, \braket{\alpha | \psi }\bra{\psi} \right) \hat{A} \left( \int_{\Omega} d\mu(\gamma) \, \ket{\gamma}\braket{\gamma | \alpha} \right) \\
+    &= \int_{\Omega} d\mu(\psi) \int_{\Omega} d\mu(\gamma) \, \braket{\alpha | \psi } \braket{\psi | \hat{A} | \gamma} \braket{\gamma | \alpha} \\
+    &= \int_{\Omega} d\mu(\psi) \int_{\Omega} d\mu(\gamma) \, \braket{\alpha | \psi } \gamma \braket{\psi | \gamma} \braket{\gamma | \alpha} \\
+    &= \int_{\Omega} d\mu(\psi) \int_{\Omega} d\mu(\gamma) \, \gamma \braket{\alpha | \psi } \delta(\psi - \gamma) \braket{\gamma | \alpha} \\
+    &= \int_{\Omega} d\mu(\psi) \, \psi \braket{\alpha | \psi } \braket{\psi | \alpha} \\
+    &= \int_{\Omega} d\mu(\psi) \, \psi \hspace{0.1cm} |\braket{\psi | \alpha}|^2 \\
+    &= \int_{\Omega} d\mu(\psi) \underbrace{\psi}_{\substack{\text{measured value } \psi \text{ for the } \\ \hat{A} \text{ operator on } \text{ eigenstate } \ket{\psi}}} \underbrace{|\braket{\psi | \alpha}|^2}_{\substack{\text{probability density function}}}
+\end{align*}
+Grouping $d\mu(\psi)$ and $|\braket{\psi | \alpha}|^2$ as a product, $d\mu(\psi) |\braket{\psi | \alpha}|^2$ draws the analogy closer to the discrete case. This is the probability to observe  
+$\hat{A}$ measurement $\psi$ for state $\alpha$ within a small neighborhood of $\psi$.
+
+\subsubsection{Momentum Operator: Position Basis}
+We can first consider an infinitesimal spatial translation operator, $\hat{\mathscr{T}}(d\textbf{r})$. It acts on position eigenstates such that $\hat{\mathscr{T}}(d\textbf{r})\ket{\textbf{r}} = \ket{\textbf{r} + d\textbf{r}}$. It's action on an arbitrary ket illustrates it works by translating amplitudes for a given position eigenket to a position eigenket located $d\textbf{r}$ away.
+\begin{align}
+    \hat{\mathscr{T}}(d\textbf{r})\ket{\psi} =& \hat{\mathscr{T}}(d\textbf{r}) \int d^3r' \, \ket{\textbf{r}'}\braket{\textbf{r}' | \psi}\\
+    &= \int d^3r' \, \hat{\mathscr{T}}(d\textbf{r}) \ket{\textbf{r}'}\braket{\textbf{r}' | \psi}\\
+    &= \int d^3r' \, \underbrace{\ket{\textbf{r}' + d\textbf{r}}}_{\substack{\text{translated state}}}\underbrace{\braket{\textbf{r}' | \psi}}_{\substack{\text{amplitude for } \psi \\\text{in original state } \ket{\textbf{r}'}}}
+\end{align}
+There are various properties we require of this infinitesimal translation operator $\hat{\mathscr{T}}(d\textbf{r})$. It can be shown that these properties can be satisfied by $\hat{\mathscr{T}}(d\textbf{r})$ taking the form of
+\begin{equation}
+    \hat{\mathscr{T}}(d\textbf{r}) = \hat{I} - i\hat{\textbf{K}} \cdot d\textbf{r}
+\end{equation}
+where $\hat{\textbf{K}}$ is defined in terms of the translation operator. We can make a direct analogy with the generating function for a classical infinitesimal translation
+\begin{equation}
+    F(\textbf{x}, \textbf{P}) = \textbf{x} \cdot \textbf{P} + \textbf{p} \cdot d\textbf{x} 
+\end{equation}
+where the first term is the generating function for the identity transformation. This suggests we can make the identification $\hat{\textbf{K}} = \frac{\hat{\textbf{p}}}{\hbar}$.
+\begin{equation}
+    \hat{\mathscr{T}}(d\textbf{r}) = \hat{I} - \frac{i \hat{\textbf{p}} \cdot d\textbf{r}}{\hbar}\\
+\end{equation}
+The next natural step after determining the operator for infinitesimal translation is to determine the operator for making finite translations, so the operator's action would look like so:
+\begin{equation}
+    \hat{\mathscr{T}}(\Delta\textbf{r})\ket{\textbf{r}} = \ket{\textbf{r} + \Delta\textbf{r}}
+\end{equation}
+Fortunately, we can make finite translations by compounding infinitesimal translations. Suppose we want to translate a finite distance $\Delta\textbf{r}$. What we have available to us is the infinitesimal translation operator. Applying this operator in the $\hat{r}$ direction any finite number of times such that the resultant total translation is $\Delta\textbf{r}$ isn't really consistent with working with infinitesimals. The only consistent method to achieve this finite translation that makes sense is to define a limiting process. We take the limit of N, the number of applications of the infinitesimal translation operator, as it approaches infinity of infinitesimal translation operator translating by $\frac{r}{N}$. We are able to work
+\begin{align}
+    \hat{\mathscr{T}}(\Delta\textbf{r}) &= \lim_{N\to\infty} \left(\hat{\mathscr{T}}(\frac{\Delta\textbf{r}}{N})\right)^N\\
+    &= \lim_{N\to\infty} \left(\hat{I} - \frac{i\hat{\textbf{p}}\cdot \frac{\Delta\textbf{r}}{N}}{\hbar}\right)^N\\
+    &= \exp\left({-\frac{i\hat{\textbf{p}} \cdot \Delta\textbf{r}}{\hbar}}\right)
+\end{align}
+It is worth a note that we can split the translation into separate translations along each basis vector because of the fact that translations in different directions fairly obviously commute.
+We are now in a position to investigate how the canonical momentum operator looks in one dimensional position space (TODO do for three dimensions).
+\begin{align}
+    \hat{\mathscr{T}}(\Delta x)\ket{\psi} &= \hat{\mathscr{T}}(\Delta x) \int dx' \, \ket{x'}\braket{x' | \psi}\\
+    \exp\left(-\frac{i\hat{p}_x \Delta x}{\hbar}\right)\ket{\psi} &= \int dx' \, \hat{\mathscr{T}}(\Delta x)\ket{x'}\braket{x' | \psi}\\
+    ... &= \int dx' \, \ket{x' + \Delta x}\braket{x' | \psi}\\
+    \intertext{Using a change of variables}
+    \exp\left(-\frac{i\hat{p}_x \Delta x}{\hbar}\right)\ket{\psi} &= \int dx' \, \ket{x'} \braket{x' - \Delta x | \psi}\\
+\end{align}
+We can expand the last term, $\braket{x' - \Delta x | \psi}$, about $x'$ since it is just a function $f_\psi(x', \Delta x) : \mathbb{R}^2 \rightarrow \mathbb{C}$.
+\begin{multline}
+    \left\{1 - \Delta x \frac{i\hat{p}_x}{\hbar} + \frac{1}{2}\Delta x^2 \left(\frac{-i\hat{p}_x}{\hbar}\right)^2 + ... \right\}\ket{\psi} = \\ \int dx' \, \ket{x'} \left\{\braket{x' | \psi} - \Delta x \left(\frac{\partial}{\partial y}\braket{y | \psi}\right)\Bigg|_{y = x'} + \frac{1}{2}\Delta x^2 \left(\frac{\partial^2}{\partial y^2}\braket{y | \psi}\right)\Bigg|_{y = x'} + ...\right\}
+    \label{translation_expansion}
+\end{multline}
+We can solve for the effect of $\hat{p}_x$ on $\ket{\psi}$ either by grouping terms by power of $\Delta x$ or more simply by taking the limit $\Delta x \rightarrow 0$. It is worth noting we could have gotten where we are headed too by just starting with the action of the infinitesimal translation operator, but whatever. Taking the limit, we have
+\begin{align}
+    \ket{\psi} - \Delta x \frac{i\hat{p}_x}{\hbar}\ket{\psi} &= \int dx' \, \ket{x'}\braket{x' | \psi} - \int dx' \, \ket{x'} \Delta x \frac{\partial}{\partial y}\braket{y | \psi}\Bigg|_{y = x'}\\
+    \hat{p}_x \ket{\psi} &= \frac{\hbar}{i}\int dx' \, \ket{x'} \frac{\partial}{\partial y}\braket{y | \psi}\Bigg|_{y = x'}\\
+\end{align}
+Conceptually, this form makes clear the effect of the momentum operator in the position basis. It operates as a transformation on the amplitudes for each position eigenket such that the original amplitude then becomes the derivative w.r.t. position of that amplitude. This is also seen by taking the inner product with $\bra{x}$.
+\begin{align}
+    \braket{x | \hat{p}_x | \psi} &= \frac{\hbar}{i}\int dx' \, \braket{x | x'} \frac{\partial}{\partial y}\braket{y | \psi}\Bigg|_{y = x'}\\
+    &= \frac{\hbar}{i}\int dx' \, \delta(x - x') \frac{\partial}{\partial y}\braket{y | \psi}\Bigg|_{y = x'}\\
+    &= \frac{\hbar}{i} \frac{\partial}{\partial y}\braket{y | \psi}\Bigg|_{y = x}
+\end{align}
+We can obtain the, infinite-dimensional, matrix elements of $\hat{p}_x$ if the state that the momentum operator acts on is a position-eigenket.
+\begin{equation}
+    \braket{x | \hat{p}_x | x'} = \frac{\hbar}{i} \frac{\partial}{\partial y}\braket{y | x'}\Bigg|_{y = x} = \frac{\hbar}{i} \frac{\partial}{\partial y}\delta(y - x')\Bigg|_{y = x}
+\end{equation}
+The matrix elements of the momentum operator in position space become the derivative of the delta function, which is something I will elaborate on in future versions.
+
+It should now be clear that momentum operator in position space takes the following form: $\hat{p}_x \rightarrow \frac{\hbar}{i} \frac{\partial}{\partial x}$. We are in a good position to see what repeated application of the momentum operator looks like. Based on our known form for the momentum operator, we should have that
+\begin{equation}
+    (\hat{p}_x)^n \ket{\psi} = \left(\frac{\hbar}{i}\right)^n \int dx' \, \ket{x'} \frac{\partial^n}{\partial y^n}\braket{y | \psi}\Bigg|_{y = x'}
+\end{equation}
+This is entirely consistent with the expansion of the translation operator acting on $\ket{\psi}$ in Equation \ref{translation_expansion}.
+
+
+\subsection{Derivation of Analytical Variational Method}
+\subsubsection{Underlying Theorem}
+\hspace{1cm} We want to estimate the ground state energy $E_0$ for a system whose Hamiltonian $\hat{H}$ we do not have an exact solution for. If we consider a, potentially non-normalized, trial ket $\ket{\tilde{0}}$, which is a best guess of the actual ground state solution $\ket{0}$, and we examine the normalized expectation value of the Hamiltonian, we can arrive at a useful theorem. In particular, we find an upper bound for the true ground state energy. We can then parameterize the trial ket and vary the parameters to minimize the upper bound. We'll start by finding the upper bound in terms of the Hamiltonian and our trial ket.
+
+\textbf{Theorem} For a self-adjoint Hamiltonian $H$, with true ground state $\ket{0}$ and ground state energy $ E_0$, $\bar{H} \ge E_0$ for trial ket $\ket{\tilde{0}}$ and 
+\begin{equation}
+    \bar{H} \equiv \frac{\braket{\tilde{0} | \hat{H} | \tilde{0}}}{\braket{\tilde{0} | \tilde{0}}}
+\end{equation}
+
+\textbf{Proof}
+\hspace{1cm} Suppose $\ket{k}$ is the set of exact eigenkets of $\hat{H}$, i.e. $\hat{H}\ket{k} = E_k\ket{k}$ and that the set $\ket{k}$ is normalized and orthonormal s.t. $\braket{k_{i} | k_{j}} = \delta_{i}^{j}$. We can decompose the trial ket in terms of the eigenket basis.
+\begin{equation}
+    \ket{\tilde{0}} = \sum_{k}\ket{k}\braket{k | \tilde{0}}
+\end{equation}
+We can then rewrite Eqn. 1 using Eqn. 2 and the definition of the set $\ket{k}$:
+\begin{equation*}
+    \bar{H} \equiv \frac{\braket{(\sum_{k=0}^{\infty}\braket{k | \tilde{0}}^{*}\bra{k}) | \hat{H} | (\sum_{k=0}^{\infty}\ket{k}\braket{k | \tilde{0}})}}{\braket{(\sum_{k=0}^{\infty}\braket{k | \tilde{0}}^{*}\bra{k}) | (\sum_{k=0}^{\infty}\ket{k}\braket{k | \tilde{0}})}}
+\end{equation*}
+In the numerator all cross-terms are zero since the eigenkets are by definition preserved under application of the Hamiltonian and all the eigenkets are orthonormal.
+\begin{align*}
+    \bar{H} &\equiv \frac{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}E_{k}}{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}}\\
+    \intertext{$E_{k} \geq E_{k-1}$ by definition, and each term in the sum of (potentially non-normalized) probabilities is scaled by $E_{k}$. So from every scaled term in the sum we can pull out the term scaled by $E_{0}$ leaving the difference left over}\\
+    &= \frac{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}(E_{k} - E_{0} + E_{0})}{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}}\\
+    &= \frac{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}(E_{k} - E_{0}) + \sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}E_{0}}{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}}\\
+    &= \frac{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}(E_{k} - E_{0})}{\sum_{k=0}^{\infty}|\braket{k | \tilde{0}}|^{2}} + E_{0}\\
+    &\ge E_{0}
+\end{align*}
+This is an equality when $\ket{\tilde{0}}$ is equal to $\ket{0}$, that is, when our-trial ground-state ket was the real ground state ket.
+
+\subsubsection{Parameterizing Our Upper Bound}
+Elaboration plan:
+- explain the quantity, show how to parameterize it in general with the formulation. but how do we evaluate it, what is next?
+- project onto position space, go from there
+
+\hspace{1cm} To spell this out more verbosely, we have a Hamiltonian, and we want to find the least upper bound for the ground state energy using the theorem derived. Examining our least upper bound $\bar{H}$ from an information perspective will be more illuminating to reassure ourselves what this quantity is and what we can do with it. The numerator of (1) is just the expectation value of our Hamiltonian on our trial ground state. As elaborated on above, this is just a complex number, and for all systems we care about with Hermitian hamiltonians, it will be a real number. The denominator, the self-projection of $\ket{\tilde{0}}$, is just a real number that accounts for our trial ket potentially not being normalized.
+
+\hspace{1cm} What we want here is to introduce a parameter into our trial ket, such that energy upper bound $\bar{H}$ is now a function of the introduced parameter. Since this is always an upper bound, varying our parameter and thus changing $\bar{H}$ will allow us to find a least upper bound. The way we can introduce this parameter, I think, is as follows. Introducing a parameter $\lambda$ to a ket $\ket{\psi}$, the ket becomes a function from our parameter space $\Lambda$ to our Hilbert space. $\Psi : \Lambda \rightarrow H$. For our trial ket, we have that $\Psi(\lambda) = \ket{\tilde{0}(\lambda)}$. TODO EXPAND THIS OUT. So the expectation value is now a function of our parameter $\lambda$. 
+
+\hspace{1cm} To evaluate this, we should choose a representation, for example position space (e.g. x,y,z), to represent these quantities. This will leave us with something less abstract we can more easily work with. The bras and kets will then become complex valued functions of the variables for our representation, and the operators will be operators in our choosen representation. Proceeding with position space for now, to get wavefunctions, we can insert the completeness relation in the position basis, $\displaystyle \hat{I} = \int_{-\infty}^{\infty}dx \, \ket{x}\bra{x}$, on either side of the Hamiltonian. For legibility and reducing symbols, I will use $\Psi$ in place of our trial ground state ket, $\tilde{0}$, from now on.
+
+\begin{align*}
+    \bar{H} &= \frac{\braket{\Psi(\lambda) | \hat{H} | \Psi(\lambda)}}{\braket{\Psi(\lambda) | \Psi(\lambda)}}\\
+    &= \frac{\displaystyle \bra{\Psi(\lambda)} \left(\int_{-\infty}^{\infty}dx \, \ket{x}\bra{x}\right) \hat{H} \left(\int_{-\infty}^{\infty}dx \, \ket{x}\bra{x}\right)\ket{\Psi(\lambda)}}{\displaystyle \bra{\Psi(\lambda)} \left(\int_{-\infty}^{\infty}dx \, \ket{x}\bra{x}\right) \ket{\Psi(\lambda)}}\\
+    &= \frac{\displaystyle \int_{-\infty}^{\infty} dy \int_{-\infty}^{\infty} dx \, \braket{\Psi(\lambda) | x}\braket{x | \hat{H} | y} \braket{y | \Psi(\lambda)}}{\displaystyle \int_{-\infty}^{\infty} dx \, \braket{\Psi(\lambda) | x}\braket{x | \Psi(\lambda)}}\\
+    \intertext{We identify $\braket{x | \Psi}$ as $\Psi(x)$ and therefore also $\braket{\Psi| x}$ as $\Psi^*(x)$. We will define $N$ as the normalization factor in the denominator.}\\
+    &= \frac{\displaystyle \int_{-\infty}^{\infty} dy \int_{-\infty}^{\infty} dx \, \Psi(x, \lambda)^* \braket{x | \hat{H} | y} \Psi(y, \lambda)}{N(\lambda)} = F(\lambda)
+\end{align*}
+
+We can then minimize $\bar{H} = F(\lambda)$
+\begin{equation*}
+    \frac{\partial{\bar{H}(\lambda_j)}}{\partial{\lambda_1}} = 0, \hspace{1cm}\frac{\partial{\bar{H}(\lambda_j)}}{\partial{\lambda_2}} = 0, \hspace{1cm}...
+\end{equation*}
+Not every parameterized trial ket can arrive at the true ground state energy, since for certain functional forms, varying parameters won't bring about the true ground state ket. For example, varying $a$ in $\psi(x) = x^a$ will never recover $\psi(x) = e^{-x^2}$. So if we can guess the proper functional form of the true ground state ket, for example, guessing $\psi(x) = ae^{-bx^2}$ when the true ground state ket is $\psi(x) = e^{-x^2/2}$, we are golden. We can make a best guess at the form by appealing to typical physics intuitions such as boundary conditions, limiting cases, symmetry, etc.
+
+\subsubsection{Example: One-Dimensional Quantum Harmonic Oscillator}
+Let's try an example for a well understood system, the one-dimensional harmonic oscillator. Recall the Hamiltonian is
+\begin{equation}
+    H = \frac{\hat{p}^2}{2m} + \frac{1}{2}m\omega^2\hat{x}^2
+\end{equation}
+Solving the time-independent Schrodinger equation reveals the energy levels are
+\begin{equation}
+    E_n = \hbar\omega (n + \frac{1}{2})
+\end{equation}
+The ground state energy is then $E_0 = \frac{1}{2}\hbar\omega$, but we can pretend we don't know that. To attempt to find a least upper-bound of the ground state energy, we can start by picking a position-space trial wavefunction. Let's choose a Gaussian, because it's symmetric about 0, which can be the resting position of the spring, and because why not. The parameterized form would then be
+\begin{equation}
+    \Psi(x, \lambda) = e^{-\lambda x^2}
+\end{equation}
+The projecting the Hamiltonian into position-space gives us (TODO expand)
+\begin{equation}
+    H \rightarrow -\frac{\hbar^2}{2m}\frac{d^2}{d x^2} + \frac{1}{2}m\omega^2 x^2
+\end{equation}
+We can then evaluate our least upper-bound using our theorem. We can start by using the completeness of $\ket{x}$. 
+\begin{align}
+    \bar{H} &= \frac{\braket{\Psi(\lambda) | \hat{H} | \Psi(\lambda)}}{\braket{\Psi(\lambda) | \Psi(\lambda)}}\\
+    \bar{H} &= \frac{\displaystyle \int_{-\infty}^{\infty} dy \int_{-\infty}^{\infty} dx \, \braket{\Psi(\lambda) | x}\braket{x | \hat{H} | y} \braket{y | \Psi(\lambda)}}{\displaystyle \int_{-\infty}^{\infty} dx \, \braket{\Psi(\lambda) | x}\braket{x | \Psi(\lambda)}}\\
+    \bar{H} &= \frac{\displaystyle \int_{-\infty}^{\infty} dy \int_{-\infty}^{\infty} dx \, \Psi^*(\lambda, x) \Psi(\lambda, y) \braket{x | \left[\frac{\hat{p}^2}{2m} + \frac{1}{2}m\omega^2\hat{x}^2\right] | y}}{\displaystyle \int_{-\infty}^{\infty} dx \, \braket{\Psi(\lambda) | x}\braket{x | \Psi(\lambda)}}\\
+    \bar{H} &= \frac{\int_{-\infty}^{\infty} dy \int_{-\infty}^{\infty} dx \, e^{-\lambda x^2}[-\frac{\hbar^2}{2m}\frac{d^2}{dy^2} + \frac{1}{2}m\omega^2x^2]\delta(x-y)e^{-\lambda y^2}}{\int_{-\infty}^{\infty} dx \, e^{-2\lambda x^2}}\\
+\end{align}
+
+reminder of what confuses me is when do we choose a specific representation, how the momentum operator acts on position eigenkets, how it looks in the position space representation (with a bra), and what specifically the derivative is acting on. Is it acting on the ket in $\braket{x | H | y}$ or is it acting on the terms after it $\braket{y | \Psi(\lambda}$.
+
+\subsection{Numerical Solutions}
+
+
+\section{Implementation of Method on On-Chain Solana Program}
+Yay Solana!
+
+
+
+\end{document}
