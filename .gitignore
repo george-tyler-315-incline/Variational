@@ -1,7 +1,13 @@
-# Build directory
+# Ignore the entire build directory (which contains all intermediate artifacts)
 build/
 
-# LaTeX temporary files
+# Ignore the Cargo target directory (Rust build artifacts)
+tools/transaction_sender/target/
+
+# Ignore common LaTeX intermediate files (if any end up in your repo)
 *.aux
 *.log
 *.out
+
+# Make sure to track PDFs in docs
+!docs/*.pdf

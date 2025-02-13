@@ -1,0 +1,20 @@
+[package]
+name = "variational-program-transaction"
+version = "0.0.1"
+edition = '2021'
+authors = ["Brandon <brandonnneway@gmail.com>"]
+
+[[bin]]
+name = "transaction-sender"
+test = false
+path = "src/main.rs"
+
+[dependencies]
+solana-sdk = "1.18"
+solana-client = "1.18"
+
+[profile.dev]
+# codegen-units=n ... controls the rust -C codegen-units flag...allows code to be compiled together
+opt-level = 0
+#lto = "thin"
+split-debuginfo = "off"
