@@ -93,10 +93,10 @@ __program_id=$(solana program deploy <repo>/build/variational.so | awk '/Program
 
 3. Stream Transaction Logs for Deployed Program
 ```bash
-solana logs "$__program_id"
+solana logs $__program_id
 ```
 
 4. Send Transaction to Variational Program
 ```bash
-<repo>/tools/transaction_sender/target/debug/transaction-sender
+<repo>/tools/transaction_sender/target/debug/transaction-sender $__program_id
 ```

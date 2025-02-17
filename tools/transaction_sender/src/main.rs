@@ -1,70 +1,98 @@
+use std::env;
 use std::str::FromStr;
 
 use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
-    instruction::{AccountMeta, Instruction}, pubkey::Pubkey, signature::{Keypair, Signer}, signer::EncodableKey, transaction::Transaction
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::{read_keypair_file, Keypair, Signer},
+    transaction::Transaction,
 };
 
-const PROGRAM_ID_STR: &str = "CAgzhmC3vfukCmZQgSd5jhZBUdLujd3hoLZztsJhjfD9";
-
 fn main() {
-    let url: String = "http://127.0.0.1:8899".to_string();
-    let client: RpcClient = RpcClient::new(url);
+    // Expect at least one argument: the on-chain program ID.
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        eprintln!("Usage: {} <program-id> [input...]", args[0]);
+        std::process::exit(1);
+    }
 
-    let program_id: Pubkey = Pubkey::from_str(PROGRAM_ID_STR).unwrap();
-
-    let payer_result = solana_sdk::signature::read_keypair_file("/home/brandonneway/.config/solana/id.json");
-    
-    let payer = match payer_result {
-        Ok(keypair) => keypair,
-        Err(error) => {
-            eprintln!("Error reading keypair: {}", error);
-            return;
+    // Parse the program ID from the first argument.
+    let program_id_str = &args[1];
+    let program_id = match Pubkey::from_str(program_id_str) {
+        Ok(pid) => pid,
+        Err(e) => {
+            eprintln!("Invalid program id: {}", e);
+            std::process::exit(1);
         }
     };
 
-    let mut get_balance_result: Result<u64, solana_client::client_error::ClientError> = client.get_balance(&payer.pubkey());
+    // Encode additional inputs (if any) into a byte vector.
+    let mut instruction_data = Vec::new();
 
-    let mut balance: u64 = get_balance_result.unwrap();
-    println!("Current Balance: {}", balance);
-
-    // Airdrop 1 SOL to the payer
-    let airdrop_signature: solana_sdk::signature::Signature = client.request_airdrop(&payer.pubkey(), 10_000_000_000).unwrap();
-    let airdrop_confirmation: Result<bool, solana_client::client_error::ClientError> = client.confirm_transaction(&airdrop_signature);
-    match airdrop_confirmation {
-        Ok(_asdf) => {
-            println!("Airdrop confirmation success");
-        },
-        Err(errorino) => {
-            eprintln!("Airdrop confirmation error: {}", errorino);
-            return;
+    // For each argument after the program ID...
+    for input in args.iter().skip(2) {
+        // Try to parse as an integer.
+        if let Ok(num) = input.parse::<i64>() {
+            // Type marker 0 for integer.
+            instruction_data.push(0u8);
+            instruction_data.extend_from_slice(&num.to_le_bytes());
+        } else {
+            // Type marker 1 for string.
+            instruction_data.push(1u8);
+            let bytes = input.as_bytes();
+            let len = bytes.len();
+            if len > 255 {
+                eprintln!("String too long (max 255 bytes): {}", input);
+                std::process::exit(1);
+            }
+            // Store the length as one byte.
+            instruction_data.push(len as u8);
+            instruction_data.extend_from_slice(bytes);
         }
     }
 
-    get_balance_result = client.get_balance(&payer.pubkey());
+    // If no extra input was provided, use a default message.
+    if instruction_data.is_empty() {
+        instruction_data.extend_from_slice(b"default sample data");
+    }
 
-    balance = get_balance_result.unwrap();
+    // Set up the RPC client.
+    let url = "http://127.0.0.1:8899".to_string();
+    let client = RpcClient::new(url);
+
+    // Read the payer keypair.
+    let payer_path = "/home/brandonneway/.config/solana/id.json";
+    let payer: Keypair = read_keypair_file(payer_path)
+        .unwrap_or_else(|err| panic!("Failed to read keypair from {}: {}", payer_path, err));
+
+    // Display current balance.
+    let balance = client.get_balance(&payer.pubkey()).unwrap();
     println!("Current Balance: {}", balance);
 
-    let word: [u8; 32] = *b"Here is some sample data\0\0\0\0\0\0\0\0";
+    // Airdrop 10 SOL (10_000_000_000 lamports) to the payer.
+    let airdrop_signature = client.request_airdrop(&payer.pubkey(), 10_000_000_000).unwrap();
+    client.confirm_transaction(&airdrop_signature).unwrap();
 
-    // Create an instruction (modify as per your program's requirements)
-    let instruction: Instruction = Instruction::new_with_bytes(
+    let balance = client.get_balance(&payer.pubkey()).unwrap();
+    println!("Current Balance after airdrop: {}", balance);
+
+    // Create the instruction with the provided input data.
+    let instruction = Instruction::new_with_bytes(
         program_id,
-        &word, // Instruction datap
+        &instruction_data,
         vec![AccountMeta::new(payer.pubkey(), true)],
     );
 
-    // Create and send the transaction
-    let recent_blockhash: solana_sdk::hash::Hash = client.get_latest_blockhash().unwrap();
-    let transaction: Transaction = Transaction::new_signed_with_payer(
+    // Build and send the transaction.
+    let recent_blockhash = client.get_latest_blockhash().unwrap();
+    let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&payer.pubkey()),
         &[&payer],
         recent_blockhash,
     );
 
-    let signature: solana_sdk::signature::Signature = client.send_and_confirm_transaction(&transaction).unwrap();
+    let signature = client.send_and_confirm_transaction(&transaction).unwrap();
     println!("Transaction signature: {}", signature);
-    return;
 }
